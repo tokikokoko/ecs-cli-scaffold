@@ -1,13 +1,13 @@
 # Commands
-## Add ecs-cli profile
+## Create ecs-cli profile
 `test-profile` という名前でecs-cliのprofileを作成する。
 
 ```shell
 ecs-cli configure profile --profile-name test-profile --access-key ${ACCESS_KEY} --secret-key ${SECRET_KEY}
 ```
 
-## Cluster config
-`ecs-test` という名前のクラスタに `test-config` という名前でconfigを作成する。
+## Create cluster config
+`test-config` という名前でconfigを作成する。
 デフォルトの起動タイプはFargate。
 
 ```shell
