@@ -1,0 +1,22 @@
+version: '3'
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: tutorial
+        awslogs-region: us-east-1
+        awslogs-stream-prefix: web
+  db:
+    image: postgres:latest
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: tutorial
+        awslogs-region: us-east-1
+        awslogs-stream-prefix: postgres
+    environment:
+      POSTGRES_PASSWORD: example

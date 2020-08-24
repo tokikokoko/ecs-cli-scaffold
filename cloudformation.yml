@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Make Web ALB
+
+Outputs:
+  TargetGroup:
+    Value: !Ref TargetGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-alb-target-group
+  LoadBalancerDNSName:
+    Value: !GetAtt LoadBalancer.DNSName
+    Export:
+      Name: !Sub ${AWS::StackName}-alb-fqdn
+  Vpc:
+    Value: !Ref Vpc
+    Export:
+      Name: !Sub ${AWS::StackName}-vpc
+  Subnet0:
+    Value: !Ref PublicSubnet0
+    Export:
+      Name: !Sub ${AWS::StackName}-subnet-0
+  Subnet1:
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub ${AWS::StackName}-subnet-1
+  SecurityGroup:
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-sg
+  ECSCluster:
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${AWS::StackName}-ecs-cluster
+  ECSLogGroup:
+    Value: !Ref ECSLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-ecs-log-group
+  ECSTaskExecutionRole:
+    Value: !Ref ECSTaskExecutionRole
+    Export:
+      Name: !Sub ${AWS::StackName}-ecs-task-role
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+
+  PublicToInternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId:
+        Ref: PublicRouteTable
+      GatewayId:
+        Ref: InternetGateway
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: Vpc
+      InternetGatewayId:
+        Ref: InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: Vpc
+
+  PublicSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: '10.0.1.0/24'
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: us-east-1a
+      VpcId:
+        Ref: Vpc
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock:
+      CidrBlock: '10.0.2.0/24'
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: us-east-1c
+      VpcId:
+        Ref: Vpc
+
+  PublicSubnetRouteTableAssociation0:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PublicSubnet0
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PublicSubnet1
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS
+      VpcId:
+        Ref: Vpc
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS
+      VpcId:
+        Ref: Vpc
+
+  ECSALBSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: ECSSecurityGroup
+    Properties:
+      Description: Allow ALB
+      GroupId:
+        Ref: ECSSecurityGroup
+      IpProtocol: 'tcp'
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId:
+        Ref: ALBSecurityGroup
+
+  AllowHttpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: ALBSecurityGroup
+    Properties:
+      Description: Allow http
+      GroupId:
+        Ref: ALBSecurityGroup
+      IpProtocol: 'tcp'
+      FromPort: 80
+      ToPort: 80
+      CidrIp:
+        "0.0.0.0/0"
+
+  LoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Scheme: 'internet-facing'
+      SecurityGroups:
+      - !Ref ALBSecurityGroup
+      Subnets:
+      - !Ref PublicSubnet0
+      - !Ref PublicSubnet1
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Ref: Vpc
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /
+      HealthCheckPort: 'traffic-port'
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 5
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+      Port: '80'
+      Protocol: HTTP
+      TargetType: 'ip'
+      TargetGroupAttributes:
+        - Key: 'deregistration_delay.timeout_seconds'
+          Value: 10
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: '80'
+      Protocol: 'HTTP'
+
+  ECSCluster:
+    Type: "AWS::ECS::Cluster"
+    Properties:
+      ClusterName: !Sub "${AWS::StackName}"
+
+  ECSLogGroup:
+    Type: "AWS::Logs::LogGroup"
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+          # For task schedule
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
