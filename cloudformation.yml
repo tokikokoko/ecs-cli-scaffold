@@ -38,6 +38,10 @@ Outputs:
     Value: !Ref ECSTaskExecutionRole
     Export:
       Name: !Sub ${AWS::StackName}-ecs-task-role
+  ECRRepository:
+    Value: !Ref ECRRepository
+    Export:
+      Name: !Sub ${AWS::StackName}-ecr-repository
 
 Resources:
   Vpc:
@@ -214,3 +218,8 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${AWS::StackName}"
