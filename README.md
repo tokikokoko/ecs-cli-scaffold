@@ -1,3 +1,23 @@
+# Usage
+## Create ecs cluster
+```shell
+aws --profile $AWS_PROFILE cloudformation deploy \
+--no-fail-on-empty-changeset \
+--capabilities CAPABILITY_NAMED_IAM \
+--template-file cloudformation.yml \
+--stack-name ecs-test
+```
+
+## Get outputs
+```shell
+export WEB_IMAGE=$(aws ecr describe-repositories | jq -r '.repositories[] | select(.repositoryName == "ecs-test") | "\(.repositoryUri):latest"')
+export TARGET_GROUP_ARN=$(aws --profile $AWS_PROFILE cloudformation describe-stacks --stack-name ecs-test | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "TargetGroup") | .OutputValue')
+export SUBNET_0=$(aws --profile $AWS_PROFILE cloudformation describe-stacks --stack-name ecs-test | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "Subnet0") | .OutputValue')
+export SUBNET_1=$(aws --profile $AWS_PROFILE cloudformation describe-stacks --stack-name ecs-test | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "Subnet1") | .OutputValue')
+export LOG_GROUP=$(aws --profile $AWS_PROFILE cloudformation describe-stacks --stack-name ecs-test | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "ECSLogGroup") | .OutputValue')
+export SECURITY_GROUP=$(aws --profile $AWS_PROFILE cloudformation describe-stacks --stack-name ecs-test | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "SecurityGroup") | .OutputValue')
+```
+
 # Commands
 ## Create ecs-cli profile
 `test-profile` という名前でecs-cliのprofileを作成する。
@@ -18,9 +38,9 @@ ecs-cli configure --cluster ecs-test --default-launch-type FARGATE --config-name
 `test-service` という名前でECSタスク・サービスをデプロイする。
 
 ```shell
-ecs-cli compose --project-name test-service service up \                                                                                                                     44s 159ms
+ecs-cli compose --project-name test-service service up \
     --cluster-config test-config \
-    --ecs-profile private_gitlab \
+    --ecs-profile test-profile \
 ```
 
 ## Deploy service(Target group)
@@ -28,12 +48,14 @@ ecs-cli compose --project-name test-service service up \                        
 docker-compose.ymlに定義されている `web` を指定したターゲットグループに登録する。
 
 ```shell
-ecs-cli compose --project-name test-service service up \                                                                                                                     44s 159ms
+ecs-cli compose \ 
+    --project-name test-service \
+    --file docker-compose.yml \
+    --file docker-compose.ecs.yml \
+    service up \
     --cluster-config test-config \
-    --ecs-profile private_gitlab \
-    --target-group-arn ${TARGET_GROUP_ARN}
-    --container-name web \
-    --container-port 80
+    --ecs-profile test-profile \
+    --target-groups "targetGroupArn=$TARGET_GROUP_ARN,containerPort=8080,containerName=web"
 ```
 
 ## docker-compose.ymlを生成する

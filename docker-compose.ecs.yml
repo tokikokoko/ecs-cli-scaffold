@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  web:
+    image: ${WEB_IMAGE:-http-server}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: ${LOG_GROUP}
+        awslogs-region: us-east-1
+        awslogs-stream-prefix: web
+  db:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: ${LOG_GROUP}
+        awslogs-region: us-east-1
+        awslogs-stream-prefix: db
