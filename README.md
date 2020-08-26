@@ -19,6 +19,12 @@ export SECURITY_GROUP=$(aws --profile $AWS_PROFILE cloudformation describe-stack
 ```
 
 # Commands
+## Build docker image and push
+```shell
+docker-compose -f docker-compose.yml -f docker-compose.ecs.yml build
+docker-compose -f docker-compose.yml -f docker-compose.ecs.yml push
+```
+
 ## Create ecs-cli profile
 `test-profile` という名前でecs-cliのprofileを作成する。
 
@@ -38,9 +44,15 @@ ecs-cli configure --cluster ecs-test --default-launch-type FARGATE --config-name
 `test-service` という名前でECSタスク・サービスをデプロイする。
 
 ```shell
-ecs-cli compose --project-name test-service service up \
+ecs-cli compose \
+    --project-name test-service \
+    --file docker-compose.yml \
+    --file docker-compose.ecs.yml \
     --cluster-config test-config \
     --ecs-profile test-profile \
+    service up \
+    --cluster-config test-config \
+    --ecs-profile test-profile
 ```
 
 ## Deploy service(Target group)
@@ -48,7 +60,7 @@ ecs-cli compose --project-name test-service service up \
 docker-compose.ymlに定義されている `web` を指定したターゲットグループに登録する。
 
 ```shell
-ecs-cli compose \ 
+ecs-cli compose \
     --project-name test-service \
     --file docker-compose.yml \
     --file docker-compose.ecs.yml \
@@ -56,6 +68,17 @@ ecs-cli compose \
     --cluster-config test-config \
     --ecs-profile test-profile \
     --target-groups "targetGroupArn=$TARGET_GROUP_ARN,containerPort=8080,containerName=web"
+```
+
+## Stop service
+```shell
+ecs-cli compose \
+    --project-name test-service \
+    --file docker-compose.yml \
+    --file docker-compose.ecs.yml \
+    service down \
+    --cluster-config test-config \
+    --ecs-profile test-profile
 ```
 
 ## docker-compose.ymlを生成する
